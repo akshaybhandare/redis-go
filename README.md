@@ -47,7 +47,7 @@ go install
 Start the Redis server on the default port (1122):
 
 ```bash
-./redis-go --server
+./redis-go CGO_ENABLED=0 --server
 ```
 
 Start the server on a custom port:
@@ -69,6 +69,7 @@ Connect to a specific host and port:
 ```bash
 ./redis-go --host localhost --port 8080
 ```
+
 
 ### Interactive CLI
 
@@ -290,3 +291,6 @@ _(Add your license information here)_
 ## Acknowledgments
 
 Built with inspiration from the Redis project and Go's excellent standard library.
+
+CGO_ENABLED=0 go build -o redis-go
+./redis-go --server --port 8899
