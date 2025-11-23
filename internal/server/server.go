@@ -69,6 +69,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handlePing(conn)
 		case "SET":
 			s.handleSet(conn, args)
+		case "JSON.SET":
+			s.handleJsonSet(conn, args)
 		case "GET":
 			s.handleGet(conn, args)
 		case "DEL":
@@ -77,6 +79,34 @@ func (s *Server) handleConnection(conn net.Conn) {
 			protocol.WriteError(conn, fmt.Sprintf("ERR unknown command '%s'", command))
 		}
 	}
+}
+
+func (s *Server) handleJsonSet(conn net.Conn, args []string) {
+	if len(args) < 3 {
+		protocol.WriteError(conn, "ERR wrong number of arguments for 'set' command")
+		return
+	}
+
+	key := args[1]
+	value := args[2]
+
+	// Default TTL is 0 (no expiration, but we'll use a large value)
+	ttl := time.Duration(0)
+
+	if len(args) >= 4 {
+		ttlSeconds, err := strconv.Atoi(args[3])
+		if err != nil {
+			protocol.WriteError(conn, "ERR invalid TTL value")
+			return
+		}
+		ttl = time.Duration(ttlSeconds) * time.Second
+	} else {
+		// If no TTL specified, use a very large value (100 years)
+		ttl = time.Duration(120) * time.Second
+	}
+
+	s.store.Set(key, value, store.TypeJSON, ttl)
+	protocol.WriteSimpleString(conn, "OK")
 }
 
 func (s *Server) handlePing(conn net.Conn) {
@@ -107,7 +137,7 @@ func (s *Server) handleSet(conn net.Conn, args []string) {
 		ttl = time.Duration(120) * time.Second
 	}
 
-	s.store.Set(key, value, ttl)
+	s.store.Set(key, value, store.TypeString, ttl)
 	protocol.WriteSimpleString(conn, "OK")
 }
 

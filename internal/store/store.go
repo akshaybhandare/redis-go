@@ -6,9 +6,15 @@ import (
 	"time"
 )
 
+const (
+	TypeString = "string"
+	TypeJSON   = "json"
+)
+
 type Item struct {
-	Value    string
+	Value    any
 	ExpireAt int64
+	Type     string
 }
 
 type Store struct {
@@ -27,12 +33,12 @@ func NewStore() *Store {
 	}
 }
 
-func (s *Store) Set(key, value string, ttl time.Duration) {
+func (s *Store) Set(key string, value any, datatype string, ttl time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.aof != nil {
-		s.aof.Write("SET", key, value, ttl)
+		s.aof.Write("SET", key, value, datatype, ttl)
 	}
 
 	expires := time.Now().Add(ttl).Unix()
@@ -40,6 +46,7 @@ func (s *Store) Set(key, value string, ttl time.Duration) {
 	s.data[key] = Item{
 		Value:    value,
 		ExpireAt: expires,
+		Type:     datatype,
 	}
 }
 
@@ -57,7 +64,11 @@ func (s *Store) Get(key string) (string, bool) {
 		return "", false
 	}
 
-	return item.Value, true
+	if item.Type == TypeJSON {
+		return item.Value.(string), true
+	}
+
+	return item.Value.(string), true
 }
 
 func (s *Store) Delete(key string) bool {
@@ -65,7 +76,7 @@ func (s *Store) Delete(key string) bool {
 	defer s.mu.Unlock()
 
 	if s.aof != nil {
-		s.aof.Write("DEL", key, "", 0)
+		s.aof.Write("DEL", key, "","", 0)
 	}
 
 	delete(s.data, key)

@@ -1,85 +1,104 @@
 package com.example.redisclient;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 
 public class Main {
 
-    private static final String BASE_URL = "http://localhost:8080";
-    private static final HttpClient client = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
+    private static final String HOST = "localhost";
+    private static final int PORT = 9080;
 
     public static void main(String[] args) {
-        try {
-            System.out.println("--- Starting Redis Client Demo ---");
+        try (RedisClient client = new RedisClient(HOST, PORT)) {
+            System.out.println("=== Redis-Go Java Client Demo ===\n");
 
-            // 1. Set Data
-            System.out.println("\n[ACTION] Setting data...");
-            String key = "savedData";
-            String value = "I_Survived!";
-            int ttl = 60;
+            // Test 1: PING command
+            System.out.println("TEST 1: PING");
+            String pingResponse = client.ping();
+            System.out.println("Response: " + pingResponse);
+            System.out.println("✓ PING test passed\n");
 
-            boolean setSuccess = setData(key, value, ttl);
-            if (setSuccess) {
-                System.out.println("[SUCCESS] Data set successfully.");
-            } else {
-                System.out.println("[FAILURE] Failed to set data.");
-            }
+            // Test 2: Basic SET and GET
+            System.out.println("TEST 2: Basic String Operations");
+            boolean setSuccess = client.set("mykey", "Hello, Redis!", 60);
+            System.out.println("SET mykey: " + (setSuccess ? "OK" : "FAILED"));
 
-            // 2. Get Data
-            System.out.println("\n[ACTION] Getting data...");
-            String retrievedValue = getData(key);
-            System.out.println("[RESULT] Retrieved Value: " + retrievedValue);
+            String value = client.get("mykey");
+            System.out.println("GET mykey: " + value);
+            System.out.println("✓ Basic SET/GET test passed\n");
 
-        } catch (Exception e) {
+            // Test 3: JSON.SET with simple JSON object
+            System.out.println("TEST 3: JSON.SET - Simple Object");
+            String userJson = "{\"name\":\"John Doe\",\"age\":30,\"email\":\"john@example.com\"}";
+            boolean jsonSetSuccess = client.jsonSet("user:1001", userJson, 120);
+            System.out.println("JSON.SET user:1001: " + (jsonSetSuccess ? "OK" : "FAILED"));
+
+            String retrievedUser = client.get("user:1001");
+            System.out.println("GET user:1001: " + retrievedUser);
+            System.out.println("✓ Simple JSON object test passed\n");
+
+            // Test 4: JSON.SET with nested object
+            System.out.println("TEST 4: JSON.SET - Nested Object");
+            String productJson = "{\"id\":\"P123\",\"name\":\"Laptop\",\"price\":999.99,\"specs\":{\"ram\":\"16GB\",\"storage\":\"512GB SSD\"}}";
+            client.jsonSet("product:P123", productJson, 300);
+
+            String retrievedProduct = client.get("product:P123");
+            System.out.println("GET product:P123: " + retrievedProduct);
+            System.out.println("✓ Nested JSON object test passed\n");
+
+            // Test 5: JSON.SET with array
+            System.out.println("TEST 5: JSON.SET - Array");
+            String tagsJson = "[\"redis\",\"golang\",\"nosql\",\"database\"]";
+            client.jsonSet("tags:tech", tagsJson, 180);
+
+            String retrievedTags = client.get("tags:tech");
+            System.out.println("GET tags:tech: " + retrievedTags);
+            System.out.println("✓ JSON array test passed\n");
+
+            // Test 6: JSON.SET with complex nested structure
+            System.out.println("TEST 6: JSON.SET - Complex Structure");
+            String orderJson = "{\"orderId\":\"ORD-2024-001\",\"customer\":{\"id\":1001,\"name\":\"Alice\"},\"items\":[{\"product\":\"Laptop\",\"qty\":1,\"price\":999.99},{\"product\":\"Mouse\",\"qty\":2,\"price\":29.99}],\"total\":1059.97}";
+            client.jsonSet("order:2024-001", orderJson, 600);
+
+            String retrievedOrder = client.get("order:2024-001");
+            System.out.println("GET order:2024-001: " + retrievedOrder);
+            System.out.println("✓ Complex JSON structure test passed\n");
+
+            // Test 7: TTL expiration test
+            System.out.println("TEST 7: TTL Expiration");
+            client.jsonSet("session:temp", "{\"sessionId\":\"abc123\",\"active\":true}", 3);
+            System.out.println("SET session:temp with 3s TTL: OK");
+
+            String tempSession = client.get("session:temp");
+            System.out.println("GET session:temp (immediately): " + tempSession);
+
+            System.out.println("Waiting 4 seconds for TTL expiration...");
+            Thread.sleep(4000);
+
+            String expiredSession = client.get("session:temp");
+            System.out.println(
+                    "GET session:temp (after expiration): " + (expiredSession == null ? "(nil)" : expiredSession));
+            System.out.println("✓ TTL expiration test passed\n");
+
+            // Test 8: DELETE command
+            System.out.println("TEST 8: DELETE");
+            client.set("temp:key", "temporary value", 60);
+            System.out.println("SET temp:key: OK");
+
+            boolean delSuccess = client.del("temp:key");
+            System.out.println("DEL temp:key: " + (delSuccess ? "OK" : "FAILED"));
+
+            String deletedValue = client.get("temp:key");
+            System.out.println("GET temp:key (after delete): " + (deletedValue == null ? "(nil)" : deletedValue));
+            System.out.println("✓ DELETE test passed\n");
+
+            System.out.println("=== All Tests Completed Successfully! ===");
+
+        } catch (IOException e) {
+            System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
-        }
-    }
-
-    private static boolean setData(String key, String value, int ttl) throws IOException, InterruptedException {
-        // Manual JSON construction to avoid external dependencies
-        String requestBody = String.format("{\"key\":\"%s\", \"value\":\"%s\", \"ttl\": %d}", key, value, ttl);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/set"))
-                .timeout(Duration.ofMinutes(1))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        System.out.println("Response Code: " + response.statusCode());
-        System.out.println("Response Body: " + response.body());
-
-        return response.statusCode() == 200 || response.statusCode() == 201;
-    }
-
-    private static String getData(String key) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/get?key=" + key))
-                .timeout(Duration.ofMinutes(1))
-                .GET()
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        System.out.println("Response Code: " + response.statusCode());
-
-        if (response.statusCode() == 200) {
-            // Assuming the server returns the raw value or a JSON.
-            // Based on the user prompt, it seems to return the value directly or maybe
-            // JSON.
-            // Let's just return the body for now.
-            return response.body();
-        } else {
-            return "Error: " + response.statusCode();
+        } catch (InterruptedException e) {
+            System.err.println("Thread interrupted: " + e.getMessage());
+            Thread.currentThread().interrupt();
         }
     }
 }

@@ -79,6 +79,24 @@ public class RedisClient implements AutoCloseable {
     }
 
     /**
+     * Set a JSON value with optional TTL using JSON.SET command
+     * 
+     * @param key       The key to set
+     * @param jsonValue The JSON string value to store
+     * @param ttl       Time-to-live in seconds (0 for no expiration)
+     * @return true if successful
+     */
+    public boolean jsonSet(String key, String jsonValue, int ttl) throws IOException {
+        if (ttl > 0) {
+            sendCommand("JSON.SET", key, jsonValue, String.valueOf(ttl));
+        } else {
+            sendCommand("JSON.SET", key, jsonValue);
+        }
+        String response = readSimpleString();
+        return "OK".equals(response);
+    }
+
+    /**
      * Send a command using RESP protocol
      * Format: *<number of arguments>\r\n$<length of argument 1>\r\n<argument
      * 1>\r\n...

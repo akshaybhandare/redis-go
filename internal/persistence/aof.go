@@ -26,7 +26,7 @@ func NewAOF(path string) (*AOF, error) {
 	}, nil
 }
 
-func (a *AOF) Write(command, key, val string, ttl time.Duration) error {
+func (a *AOF) Write(command, key string, val any, datatype string, ttl time.Duration) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -45,7 +45,7 @@ func (a *AOF) Write(command, key, val string, ttl time.Duration) error {
 		a.file = f
 	}
 
-	_, err := fmt.Fprintf(a.file, "%s %s %s %d\n", command, key, val, ttl)
+	_, err := fmt.Fprintf(a.file, "%s %s %s %s %d\n", command, key, val, datatype, ttl)
 
 	return err
 }
